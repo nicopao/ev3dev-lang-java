@@ -331,7 +331,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
      * @param angle angle
      */
     public void rotate(int angle) {
-        rotate(angle, true);
+        rotate(angle, false);
     }
 
     /**
