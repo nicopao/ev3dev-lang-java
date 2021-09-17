@@ -69,6 +69,19 @@ public class DataChannelRereader implements Closeable {
         }
     }
 
+    /**
+     * @return an int converted from the string read from the bytes in the file;
+     */
+    public synchronized int readInt() {
+        String integerRead = readString();
+        try {
+            return (Integer.parseInt(integerRead));
+        } catch (NumberFormatException e) {
+            throw new RuntimeException("Value being read was not numeric and cannot be converted to int "   
+                + "while reading path: " + path, e);
+        }
+    }
+
     public Path getPath() {
         return path;
     }

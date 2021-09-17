@@ -31,6 +31,7 @@
               |.*/EV3Key.java|
               |.*/Battery.java|
               |.*/NXTTemperatureSensor.java|
+              |.*/NXTSoundSensor.java|
               |.*/BaseRegulatedMotor.java|
               |.*/RGBFramebufferProvider.java" />
     <suppress checks="TypeName"

@@ -56,12 +56,18 @@ public class DataChannelRewriter implements Closeable {
             byteBuffer.put(((byte)'\n'));
             byteBuffer.flip();
             channel.truncate(0);
+            long t = System.currentTimeMillis();
             channel.write(byteBuffer,0);
             channel.force(false);
         } catch (IOException e) {
             throw new RuntimeException("Problem writing path: " + path, e);
         }
     }
+
+    public synchronized void writeInt(int intToWrite) {
+        writeString(Integer.toString(intToWrite));
+    }
+
 
     public Path getPath() {
         return path;

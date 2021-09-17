@@ -2,7 +2,10 @@ package ev3dev.actuators.lego.motors;
 
 import ev3dev.hardware.EV3DevMotorDevice;
 import ev3dev.hardware.EV3DevPlatforms;
+import ev3dev.hardware.EV3DevFileSystem;
 import ev3dev.sensors.Battery;
+import ev3dev.utils.DataChannelRereader;
+import ev3dev.utils.DataChannelRewriter;
 import lejos.hardware.port.Port;
 import lejos.robotics.RegulatedMotor;
 import lejos.robotics.RegulatedMotorListener;
@@ -13,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.io.File;
 
 /**
  * Abstraction for a Regulated motors motors.
@@ -55,6 +59,9 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 
     private boolean regulationFlag = true;
 
+    private final DataChannelRewriter modeWriter;
+    private final DataChannelContainer channelContainer;
+
     private final List<RegulatedMotorListener> listenerList;
 
     /**
@@ -91,12 +98,20 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
         if (log.isDebugEnabled()) {
             log.debug("Setting port in mode: {}", TACHO_MOTOR);
         }
-        this.setStringAttribute(MODE, TACHO_MOTOR);
+        // Initialise mode writer based on first detect and then write mode.
+        modeWriter = new DataChannelRewriter(PATH_DEVICE + "/" + MODE);
+        modeWriter.writeString(TACHO_MOTOR);
+
         Delay.msDelay(1000);
         this.detect(TACHO_MOTOR, port);
-        //TODO Review to implement asynchronous solution
+    
         Delay.msDelay(1000);
-        this.setStringAttribute(COMMAND, RESET);
+
+        channelContainer = new DataChannelContainer(PATH_DEVICE);
+
+        //TODO Review to implement asynchronous solution
+        channelContainer.writeCommand(RESET);
+        //this.setStringAttribute(COMMAND, RESET);
         if (log.isDebugEnabled()) {
             log.debug("Motor ready to use on Port: {}", motorPort.getName());
         }
@@ -120,7 +135,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
      * @see lejos.robotics.RegulatedMotor#getTachoCount()
      */
     public int getTachoCount() {
-        return getIntegerAttribute(POSITION);
+        return channelContainer.readTacho();
+        //return getIntegerAttribute(POSITION);
     }
 
     /**
@@ -141,9 +157,9 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
     public void forward() {
         this.setSpeedDirect(this.speed);
         if (!this.regulationFlag) {
-            this.setStringAttribute(COMMAND, RUN_DIRECT);
+            this.channelContainer.writeCommand(RUN_DIRECT);
         } else {
-            this.setStringAttribute(COMMAND, RUN_FOREVER);
+            this.channelContainer.writeCommand(RUN_FOREVER);
         }
 
         for (RegulatedMotorListener listener : listenerList) {
@@ -155,9 +171,9 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
     public void backward() {
         this.setSpeedDirect(-this.speed);
         if (!this.regulationFlag) {
-            this.setStringAttribute(COMMAND, RUN_DIRECT);
+            this.channelContainer.writeCommand(RUN_DIRECT);
         } else {
-            this.setStringAttribute(COMMAND, RUN_FOREVER);
+            this.channelContainer.writeCommand(RUN_FOREVER);
         }
 
         for (RegulatedMotorListener listener : listenerList) {
@@ -227,8 +243,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
      * @param immediateReturn Whether the function should busy-wait until the motor stops reporting the 'running' state.
      */
     private void doStop(String mode, boolean immediateReturn) {
-        this.setStringAttribute(STOP_COMMAND, mode);
-        this.setStringAttribute(COMMAND, STOP);
+        this.channelContainer.writeStopCommand(mode);
+        this.channelContainer.writeCommand(STOP);
 
         if (!immediateReturn) {
             waitComplete();
@@ -252,7 +268,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
      */
     @Override
     public boolean isMoving() {
-        return (this.getStringAttribute(STATE).contains(STATE_RUNNING));
+        return (this.channelContainer.readState().contains(STATE_RUNNING));
+        //return (this.getStringAttribute(STATE).contains(STATE_RUNNING));
     }
 
     /**
@@ -269,9 +286,9 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 
     private void setSpeedDirect(int speed) {
         if (!this.regulationFlag) {
-            this.setIntegerAttribute(DUTY_CYCLE, speed);
+            this.channelContainer.writeDutyCycle(speed);
         } else {
-            this.setIntegerAttribute(SPEED, speed);
+            this.channelContainer.writeSpeed(speed);
         }
     }
 
@@ -280,7 +297,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
      * will cause any current move operation to be halted.
      */
     public void resetTachoCount() {
-        this.setStringAttribute(COMMAND, RESET);
+        this.channelContainer.writeCommand(RESET);
         this.regulationFlag = true;
     }
 
@@ -293,8 +310,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
      */
     public void rotate(int angle, boolean immediateReturn) {
         this.setSpeedDirect(this.speed);
-        this.setIntegerAttribute(POSITION_SP, angle);
-        this.setStringAttribute(COMMAND, RUN_TO_REL_POS);
+        this.channelContainer.writePositionSP(angle);
+        this.channelContainer.writeCommand(RUN_TO_REL_POS);
 
         if (!immediateReturn) {
             while (this.isMoving()) {
@@ -309,12 +326,12 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
     }
 
     /**
-     * Rotate by the requested number of degrees. Wait for the move to complete.
+     * Rotate by the requested number of degrees. Do not wait for the move to complete by default.
      *
      * @param angle angle
      */
     public void rotate(int angle) {
-        rotate(angle, false);
+        rotate(angle, true);
     }
 
     /**
@@ -325,8 +342,9 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
      */
     public void rotateTo(int limitAngle, boolean immediateReturn) {
         this.setSpeedDirect(this.speed);
-        this.setIntegerAttribute(POSITION_SP, limitAngle);
-        this.setStringAttribute(COMMAND, RUN_TO_ABS_POS);
+
+        this.channelContainer.writePositionSP(limitAngle);
+        this.channelContainer.writeCommand(RUN_TO_ABS_POS);
 
         if (!immediateReturn) {
             while (this.isMoving()) {
@@ -356,9 +374,11 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
      */
     public int getSpeed() {
         if (!this.regulationFlag) {
-            return this.getIntegerAttribute(DUTY_CYCLE);
+            return this.channelContainer.readDutyCycle();
+            //return this.getIntegerAttribute(DUTY_CYCLE);
         } else {
-            return this.getIntegerAttribute(SPEED);
+            return this.channelContainer.readSpeed();
+            //return this.getIntegerAttribute(SPEED);
         }
 
     }
@@ -369,7 +389,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
      * @return true if the motors is stalled, else false
      */
     public boolean isStalled() {
-        return (this.getStringAttribute(STATE).contains(STATE_STALLED));
+        return (this.channelContainer.readState().contains(STATE_STALLED));
+        //return (this.getStringAttribute(STATE).contains(STATE_STALLED));
     }
 
     /**
@@ -443,4 +464,79 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
         log.warn("Not implemented the method: endSynchronization");
     }
 
+
+    private class DataChannelContainer {
+    
+        // DATACHANNEL REWRITERS
+        private final DataChannelRewriter speedWriter;
+        private final DataChannelRewriter commandWriter;
+        private final DataChannelRewriter dutyCycleWriter;
+        private final DataChannelRewriter stopCommandWriter;
+        private final DataChannelRewriter positionSPWriter;
+    
+        // DATACHANEL REREADERS
+        private final DataChannelRereader stateReader;
+        private final DataChannelRereader tachoReader;
+        private final DataChannelRereader speedReader;
+        private final DataChannelRereader dutyCycleReader;
+    
+        private final File path;
+    
+        public DataChannelContainer(File path) {
+            this.path = path;
+    
+            // Initialising writers.
+            speedWriter = new DataChannelRewriter(path + "/" + SPEED);
+            commandWriter = new DataChannelRewriter(path + "/" + COMMAND);
+            stopCommandWriter = new DataChannelRewriter(path + "/" + STOP_COMMAND);
+            dutyCycleWriter = new DataChannelRewriter(path + "/" + DUTY_CYCLE);
+            positionSPWriter = new DataChannelRewriter(path + "/" + POSITION_SP);
+    
+            // Initialising readers.
+            stateReader = new DataChannelRereader(path + "/" + STATE);
+            tachoReader = new DataChannelRereader(path + "/" + POSITION);
+            speedReader = new DataChannelRereader(path + "/" + SPEED);
+            dutyCycleReader = new DataChannelRereader(path + "/" + DUTY_CYCLE);
+        }
+    
+        public void writeSpeed(int speed) {
+            speedWriter.writeInt(speed);
+        }
+    
+        public void writeDutyCycle(int dutyCycle) {
+            dutyCycleWriter.writeInt(dutyCycle);
+        }
+        
+        public void writeCommand(String command) {
+            commandWriter.writeString(command);
+        }
+        
+        public void writeStopCommand(String stopCommand) {
+            stopCommandWriter.writeString(stopCommand);
+        }
+    
+        public void writePositionSP(int posSP) {
+            positionSPWriter.writeInt(posSP);
+        }
+    
+        public String readState() {
+            return stateReader.readString();
+        }
+    
+        public int readTacho() {
+            return tachoReader.readInt();
+        }
+
+        public int readSpeed() {
+            return speedReader.readInt();
+        }
+    
+        public int readDutyCycle() {
+            return dutyCycleReader.readInt();
+        }
+
+    }
+
 }
+
+

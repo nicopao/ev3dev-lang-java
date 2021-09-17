@@ -89,6 +89,49 @@ public class FakeLegoRegulatedMotor extends BaseElement {
                         MOTOR + portNumber + "/" +
                         MOTOR_COMMAND);
         createFile(motor1CommandPath);
+
+    
+        Path motor1SpeedSPPath = Paths.get(
+                EV3DEV_FAKE_SYSTEM_PATH + "/" +
+                        LEGO_TACHO_PATH + "/" +
+                        MOTOR + portNumber + "/" +
+                        MOTOR_SPEED_SP);
+        createFile(motor1SpeedSPPath);
+
+        Path motor1StopActionPath = Paths.get(
+                EV3DEV_FAKE_SYSTEM_PATH + "/" +
+                        LEGO_TACHO_PATH + "/" +
+                        MOTOR + portNumber + "/" +
+                        MOTOR_STOP_ACTION);
+        createFile(motor1StopActionPath);
+
+        Path motor1DutyCycleSPPath = Paths.get(
+                EV3DEV_FAKE_SYSTEM_PATH + "/" +
+                        LEGO_TACHO_PATH + "/" +
+                        MOTOR + portNumber + "/" +
+                        MOTOR_DUTY_CYCLE_SP);
+        createFile(motor1DutyCycleSPPath);
+
+        Path motor1PositionSPPath = Paths.get(
+                EV3DEV_FAKE_SYSTEM_PATH + "/" +
+                        LEGO_TACHO_PATH + "/" +
+                        MOTOR + portNumber + "/" +
+                        MOTOR_POSITION_SP);
+        createFile(motor1PositionSPPath);
+
+        Path motor1PositionPath = Paths.get(
+                EV3DEV_FAKE_SYSTEM_PATH + "/" +
+                        LEGO_TACHO_PATH + "/" +
+                        MOTOR + portNumber + "/" +
+                        MOTOR_POSITION);
+        createFile(motor1PositionPath);
+
+        Path motor1StatePath = Paths.get(
+                EV3DEV_FAKE_SYSTEM_PATH + "/" +
+                        LEGO_TACHO_PATH + "/" +
+                        MOTOR + portNumber + "/" +
+                        MOTOR_STATE);
+        createFile(motor1StatePath);
     }
 
 }
