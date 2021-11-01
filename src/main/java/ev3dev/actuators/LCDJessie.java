@@ -21,7 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Objects;
 
-public class LCDJessie extends EV3DevDevice implements GraphicsLCD {
+public class LCDJessie extends EV3DevDevice implements BrickLCD {
 
     private static final Logger log = LoggerFactory.getLogger(LCDJessie.class);
 
@@ -46,14 +46,14 @@ public class LCDJessie extends EV3DevDevice implements GraphicsLCD {
     private BufferedImage image;
     private Graphics2D g2d;
 
-    private static GraphicsLCD instance;
+    private static BrickLCD instance;
 
     /**
      * Singleton constructor
      *
      * @return A Sound instance
      */
-    public static GraphicsLCD getInstance() {
+    public static BrickLCD getInstance() {
         //TODO Refactor
         if (instance == null) {
             instance = new LCDJessie();
@@ -373,4 +373,14 @@ public class LCDJessie extends EV3DevDevice implements GraphicsLCD {
     public void drawOval(int x, int y, int width, int height) {
         g2d.drawOval(x, y, width, height);
     }
+
+	@Override
+	public void drawString(String str, int x, int y) {
+        log.debug("Feature not implemented");	
+	}
+
+	@Override
+	public void drawString(String str, int x, int y, boolean inverted) {
+        log.debug("Feature not implemented");
+	}
 }

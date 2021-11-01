@@ -11,7 +11,7 @@ public class LCD {
      *
      * @return GraphicsLCD
      */
-    public static GraphicsLCD getInstance() {
+    public static BrickLCD getInstance() {
 
         if (EV3DevDistros.getInstance().getDistro().equals(EV3DevDistro.STRETCH)) {
             return LCDStretch.getInstance();

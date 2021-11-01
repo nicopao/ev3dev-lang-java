@@ -28,7 +28,7 @@ import java.util.TimerTask;
 /**
  * Lejos LCD reimplementation using Java2D API
  */
-public class LCDStretch extends EV3DevDevice implements GraphicsLCD {
+public class LCDStretch extends EV3DevDevice implements BrickLCD {
 
     // custom config
     public static final String EV3DEV_LCD_KEY = "EV3DEV_LCD_KEY";
@@ -58,7 +58,7 @@ public class LCDStretch extends EV3DevDevice implements GraphicsLCD {
      *
      * @return GraphicsLCD
      */
-    public static GraphicsLCD getInstance() {
+    public static BrickLCD getInstance() {
         //TODO Refactor
         if (instance == null) {
             instance = new LCDStretch();
@@ -573,5 +573,20 @@ public class LCDStretch extends EV3DevDevice implements GraphicsLCD {
     public void drawOval(int x, int y, int width, int height) {
         g2d.drawOval(x, y, width, height);
     }
+
+	@Override
+	public void drawString(String str, int x, int y) {
+		this.drawString(str, x, y, false);		
+	}
+
+	@Override
+	public void drawString(String str, int x, int y, boolean inverted) {
+		FontMetrics metrics = g2d.getFontMetrics();
+        int charwidth = metrics.charWidth('_');
+        int lineHeight = metrics.getHeight();
+        int anchor = GraphicsLCD.LEFT|GraphicsLCD.TOP;
+        this.drawString(str, x*charwidth, y*lineHeight, anchor, inverted);
+		this.refresh();
+	}
 
 }
