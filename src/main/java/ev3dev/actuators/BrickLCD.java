@@ -2,7 +2,7 @@ package ev3dev.actuators;
 
 import lejos.hardware.lcd.GraphicsLCD;
 
-/*
+/**
  * Interface that extends GraphicsLCD to provide APIs for easy 
  * string printing to LCD, without having to implement TextLCD interface.
  * @author nicopao
@@ -10,7 +10,7 @@ import lejos.hardware.lcd.GraphicsLCD;
 
 public interface BrickLCD extends GraphicsLCD {
 
-	/*
+	/**
 	 * Prints a string on LCD. 
 	 * By default:
 	 * <ul>
@@ -23,7 +23,7 @@ public interface BrickLCD extends GraphicsLCD {
 	 * @param y - vertical position in lines
 	 */
 	void drawString(String str, int x, int y);
-	/*
+	/**
 	 * Prints a string on LCD. 
 	 * By default, anchor point is TOP-LEFT
 	 * @param str - string to print

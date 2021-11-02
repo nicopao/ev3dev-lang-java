@@ -1,0 +1,13 @@
+ev3dev.actuators
+ev3dev.actuators.ev3
+ev3dev.actuators.lego.motors
+ev3dev.hardware
+ev3dev.hardware.display
+ev3dev.hardware.display.spi
+ev3dev.robotics.tts
+ev3dev.sensors
+ev3dev.sensors.ev3
+ev3dev.sensors.mindsensors
+ev3dev.sensors.nxt
+ev3dev.utils
+ev3dev.utils.io
