@@ -2,7 +2,6 @@ package ev3dev.actuators;
 
 import ev3dev.hardware.EV3DevDistro;
 import ev3dev.hardware.EV3DevDistros;
-import lejos.hardware.lcd.GraphicsLCD;
 
 public class LCD {
 
