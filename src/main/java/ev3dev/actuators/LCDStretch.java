@@ -179,18 +179,18 @@ public class LCDStretch extends EV3DevDevice implements BrickLCD {
 		int adjusted_y = y * line_height;
 		int screen_width = this.getWidth();
 		int screen_height = this.getHeight();
-		if (adjusted_y  >= screen_height) {
-			log.info("String " + str + " vertical position (" + adjusted_y + ") is outside display bounds ("
+		if (adjusted_y  >= screen_height + line_height || adjusted_y<=0) {
+			log.info("String " + str + " vertical position (" + adjusted_y + ") is outside display bounds (0,"
 					+ screen_height + ")");
 		}
-		if (adjusted_y + line_height > screen_height) {
+		else if (adjusted_y > screen_height  || adjusted_y < line_height) {
 			log.info("String " + str + " vertical position is partially outside display bounds");
 		}
-		if (adjusted_x>=screen_width) {
-			log.info("String " + str + " horizontal position (" + adjusted_x + ") is outside display bounds ("
+		if (adjusted_x>=screen_width || adjusted_x+string_width<0) {
+			log.info("String " + str + " horizontal position (" + adjusted_x + ") is outside display bounds (0,"
 					+ screen_width + ")");
 		}
-		if (adjusted_x+string_width>screen_width) {
+		else if (adjusted_x+string_width>=screen_width || adjusted_x<0) {
 			log.info("String " + str + " is partially outside display bounds");
 		}
 
