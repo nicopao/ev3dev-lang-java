@@ -144,7 +144,7 @@ public class EV3ColorSensor extends BaseSensor implements LampController, ColorI
      * Measures the level of reflected light from the sensors RED LED.
      *
      * <p><b>Size and content of the sample</b><br>
-     * The sample contains one element containing the intensity level (Normalized between 0 and 1) of reflected light.
+     * The sample contains one element containing the intensity level (Normalized between 0 and 100) of reflected light.
      *
      * @return A sampleProvider
      *     See {@link lejos.robotics.SampleProvider leJOS conventions for SampleProviders}
@@ -159,7 +159,7 @@ public class EV3ColorSensor extends BaseSensor implements LampController, ColorI
      * Measures the level of ambient light while the sensors lights are off.
      *
      * <p><b>Size and content of the sample</b><br>
-     * The sample contains one element containing the intensity level (Normalized between 0 and 1) of ambient light.
+     * The sample contains one element containing the intensity level (Normalized between 0 and 100) of ambient light.
      *
      * @return A sampleProvider
      *     See {@link lejos.robotics.SampleProvider leJOS conventions for SampleProviders}
@@ -178,7 +178,7 @@ public class EV3ColorSensor extends BaseSensor implements LampController, ColorI
      *
      * <p><b>Size and content of the sample</b><br>
      * The sample contains 3 elements containing the intensity level
-     * (Normalized between 0 and 1) of red, green and blue light respectivily.
+     * (Normalized between 0 and 255) of red, green and blue light respectivily.
      *
      * @return A sampleProvider
      *     See {@link lejos.robotics.SampleProvider leJOS conventions for SampleProviders}
