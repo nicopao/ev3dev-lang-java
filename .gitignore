@@ -4,4 +4,3 @@ build
 *.iml
 docs/api/*
 out
-/target/
