@@ -32,8 +32,10 @@ public class ClapFilter implements SampleProvider {
 		timeGap = gap;
 		ss = soundMode;
 		threshold = level;
-		// At first say its a long time since we heard a clap
-		lastHeard = -2 * timeGap;
+		// At first say its a long time since we heard a clap.
+		// a value of zero for system's time in millis corresponds to 
+		// midnight, January 1, 1970 UTC
+		lastHeard = 0; 
 	}
 
 	/**
