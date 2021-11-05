@@ -56,7 +56,7 @@ public class DataChannelRewriter implements Closeable {
             byteBuffer.put(((byte)'\n'));
             byteBuffer.flip();
             channel.truncate(0);
-            long t = System.currentTimeMillis();
+//            long t = System.currentTimeMillis();
             channel.write(byteBuffer,0);
             channel.force(false);
         } catch (IOException e) {
