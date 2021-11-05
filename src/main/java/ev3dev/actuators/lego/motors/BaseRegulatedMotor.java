@@ -156,20 +156,16 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
     @Override
     public void forward() {
         this.setSpeedDirect(this.speed);
-        if (!this.regulationFlag) {
-            this.channelContainer.writeCommand(RUN_DIRECT);
-        } else {
-            this.channelContainer.writeCommand(RUN_FOREVER);
-        }
-
-        for (RegulatedMotorListener listener : listenerList) {
-            listener.rotationStarted(this, this.getTachoCount(), this.isStalled(), System.currentTimeMillis());
-        }
+        run();
     }
 
     @Override
     public void backward() {
         this.setSpeedDirect(-this.speed);
+        run();
+    }
+    
+    private void run() {
         if (!this.regulationFlag) {
             this.channelContainer.writeCommand(RUN_DIRECT);
         } else {
@@ -282,6 +278,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
     public void setSpeed(int speed) {
         this.speed = speed;
         setSpeedDirect(speed);
+        run();
     }
 
     private void setSpeedDirect(int speed) {
