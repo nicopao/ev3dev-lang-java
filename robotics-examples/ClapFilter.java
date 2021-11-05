@@ -6,7 +6,8 @@ import lejos.robotics.SampleProvider;
  * Filters sound ( like a high pass filter ) so that we do not hear two loud
  * sounds within a certain amount of time
  * 
- * @author Dave Cohen ( cyclingProfessor on github ), Nicola Paoletti
+ * @author Dave Cohen ( cyclingProfessor on github )
+ * @author Nicola Paoletti (minor fixes)
  */
 public class ClapFilter implements SampleProvider {
 	/** The loudness value that is considered to be a clap ? */
