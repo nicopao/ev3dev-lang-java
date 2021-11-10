@@ -1,8 +1,15 @@
 package ev3dev.actuators.lego.motors;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import ev3dev.hardware.EV3DevMotorDevice;
 import ev3dev.hardware.EV3DevPlatforms;
-import ev3dev.hardware.EV3DevFileSystem;
 import ev3dev.sensors.Battery;
 import ev3dev.utils.DataChannelRereader;
 import ev3dev.utils.DataChannelRewriter;
@@ -10,14 +17,6 @@ import lejos.hardware.port.Port;
 import lejos.robotics.RegulatedMotor;
 import lejos.robotics.RegulatedMotorListener;
 import lejos.utility.Delay;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Function;
-import java.io.File;
 
 /**
  * Abstraction for a Regulated motors motors. The basic control methods are:
@@ -117,7 +116,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 
 		Delay.msDelay(1000);
 
-		channelContainer = new DataChannelContainer(PATH_DEVICE,this);
+		channelContainer = new DataChannelContainer(PATH_DEVICE, this);
 
 		// TODO Review to implement asynchronous solution
 		channelContainer.writeCommand(RESET);
@@ -149,12 +148,10 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	 * @see lejos.robotics.RegulatedMotor#getTachoCount()
 	 */
 	public int getTachoCount() {
-		if(this.isInSynch()) {
-			log.warn("getTachoCount() ignored. It cannot appear within a synch block. Returning -1");
-			return -1;
+		if (this.isInSynch()) {
+			log.warn("getTachoCount() cannot be executed within synch block. Returning the pre-synchronization value.");
 		}
-		else 
-			return channelContainer.readTacho();
+		return channelContainer.readTacho();
 		// return getIntegerAttribute(POSITION);
 	}
 
@@ -281,11 +278,10 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	 */
 	@Override
 	public boolean isMoving() {
-		if(this.isInSynch()) {
-			log.warn("isMoving() ignored. It cannot appear within a synch block. Returning false");
-			return false;
+		if (this.isInSynch()) {
+			log.warn("isMoving() cannot be executed within synch block. Returning the pre-synchronization value.");
 		}
-		else return (this.channelContainer.readState().contains(STATE_RUNNING));
+		return (this.channelContainer.readState().contains(STATE_RUNNING));
 		// return (this.getStringAttribute(STATE).contains(STATE_RUNNING));
 	}
 
@@ -334,7 +330,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		this.channelContainer.writeCommand(RUN_TO_REL_POS);
 
 		// don't block if in synch
-		if (!(immediateReturn||this.isInSynch())) {
+		if (!(immediateReturn || this.isInSynch())) {
 			while (this.isMoving()) {
 				// do stuff or do nothing
 				// possibly sleep for some short interval to not block
@@ -367,7 +363,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		this.channelContainer.writeCommand(RUN_TO_ABS_POS);
 
 		// don't block if in synch
-		if (!(immediateReturn||this.isInSynch())) {
+		if (!(immediateReturn || this.isInSynch())) {
 			while (this.isMoving()) {
 				// do stuff or do nothing
 				// possibly sleep for some short interval to not block
@@ -392,19 +388,16 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	 * @return the current target speed.
 	 */
 	public int getSpeed() {
-		if(this.isInSynch()) {
-			log.warn("getSpeed() ignored. It cannot appear within a synch block. Returning -1");
-			return -1;
+		if (this.isInSynch()) {
+			log.warn("getSpeed() cannot be executed within synch block. Returning the pre-synchronization value.");
 		}
-		else {
-		
+
 		if (!this.regulationFlag) {
 			return this.channelContainer.readDutyCycle();
 			// return this.getIntegerAttribute(DUTY_CYCLE);
 		} else {
 			return this.channelContainer.readSpeed();
 			// return this.getIntegerAttribute(SPEED);
-		}
 		}
 
 	}
@@ -415,11 +408,10 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	 * @return true if the motors is stalled, else false
 	 */
 	public boolean isStalled() {
-		if(this.isInSynch()) {
-			log.warn("isStalled() ignored. It cannot appear within a synch block. Returning false");
-			return false;
+		if (this.isInSynch()) {
+			log.warn("isStalled() cannot be executed within synch block. Returning the pre-synchronization value.");
 		}
-		else return (this.channelContainer.readState().contains(STATE_STALLED));
+		return (this.channelContainer.readState().contains(STATE_STALLED));
 		// return (this.getStringAttribute(STATE).contains(STATE_STALLED));
 	}
 
@@ -585,11 +577,10 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		private final DataChannelRereader dutyCycleReader;
 
 		private final File path;
-		
-		
+
 		// queue to store list of actions dispatched during a synchronisation
 		private ArrayList<String[]> dispatchedActions;
-		
+
 		private BaseRegulatedMotor owner;
 
 		public DataChannelContainer(File path, BaseRegulatedMotor owner) {
@@ -607,33 +598,33 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 			tachoReader = new DataChannelRereader(path + "/" + POSITION);
 			speedReader = new DataChannelRereader(path + "/" + SPEED);
 			dutyCycleReader = new DataChannelRereader(path + "/" + DUTY_CYCLE);
-			
-			this.owner=owner;
+
+			this.owner = owner;
 		}
 
 		// TODO actually dispatch the action in the queue
 		public void writeSpeed(int speed) {
-			if(!this.owner.isInSynch())
+			if (!this.owner.isInSynch())
 				speedWriter.writeInt(speed);
 		}
 
 		public void writeDutyCycle(int dutyCycle) {
-			if(!this.owner.isInSynch())
+			if (!this.owner.isInSynch())
 				dutyCycleWriter.writeInt(dutyCycle);
 		}
 
 		public void writeCommand(String command) {
-			if(!this.owner.isInSynch())
+			if (!this.owner.isInSynch())
 				commandWriter.writeString(command);
 		}
 
 		public void writeStopCommand(String stopCommand) {
-			if(!this.owner.isInSynch())
+			if (!this.owner.isInSynch())
 				stopCommandWriter.writeString(stopCommand);
 		}
 
 		public void writePositionSP(int posSP) {
-			if(!this.owner.isInSynch())
+			if (!this.owner.isInSynch())
 				positionSPWriter.writeInt(posSP);
 		}
 
