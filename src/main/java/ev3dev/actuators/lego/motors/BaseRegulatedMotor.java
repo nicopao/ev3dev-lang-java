@@ -697,10 +697,11 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 				// get first action in queue (don't remove it unless it's finished)
 				Action a = this.dispatchedActions.getFirst();
 				// if it returns false, action a has finished executing
-				while (!a.getWriter().executeNext(a.getArg())) {
-					// removes the action
+				while (!a.getWriter().executeNext(a.getArg()) && !this.dispatchedActions.isEmpty()) {
+					// removes the action and updates next
 					this.dispatchedActions.poll();
-					a = this.dispatchedActions.getFirst();
+					if(!this.dispatchedActions.isEmpty())
+						a = this.dispatchedActions.getFirst();
 				}
 			}
 			return this.dispatchedActions.isEmpty();
