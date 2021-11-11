@@ -1,9 +1,12 @@
 package ev3dev.actuators.lego.motors;
 
 import java.io.File;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
+import java.util.Queue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -515,8 +518,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		// this is the motor responsible
 		this.setSynchResponsible(this);
 		this.setInSynch(true);
-		for (int i = 0; i < this.motorsSynchedWith.length; i++) {
-			BaseRegulatedMotor otherMotor = this.motorsSynchedWith[i];
+
+		for (BaseRegulatedMotor otherMotor : this.motorsSynchedWith) {
 			otherMotor.setSynchResponsible(this);
 			otherMotor.setInSynch(true);
 		}
@@ -524,10 +527,57 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 
 	@Override
 	public void endSynchronization() {
-//    	execute step by step
+
+		if (this.getSynchResponsible() != this)
+			log.warn("ignoring endSynchronization: it was invoked on wrong object");
+		else if (!this.isInSynch())
+			log.warn("ignoring endSynchronization: startSynchronisation not found");
+
+		else {
+			// begin scheduling
+			List<BaseRegulatedMotor> motorlist = new ArrayList<BaseRegulatedMotor>();
+			motorlist.add(this);
+	        Collections.addAll(motorlist, this.motorsSynchedWith);
+			// this arrays keeps the number of actions left to schedule for each synchedwithmotor+this one
+			// init array
+			int[] actionsLeft = new int[motorlist.size()];
+			int totalActions = 0;
+			for(int i =0; i< motorlist.size(); i++) {
+				BaseRegulatedMotor m = motorlist.get(i);
+				int numActions = m.channelContainer.getNumOfDispatchedAtomicActions();
+				actionsLeft[i]=numActions;
+				totalActions+=numActions;
+			}
+
+			// array to store the scheduling
+			BaseRegulatedMotor[] schedule = new BaseRegulatedMotor[totalActions];
+			for (int i =0; i< schedule.length; i++) {
+				// for efficiency, schedule by default the first motor 
+				schedule[i]=motorlist.get(0);
+				actionsLeft[0]=actionsLeft[0]-1;
+				double coin = Math.random()*(totalActions-i);
+				double cdf = 0;
+				// don't need to check the first
+				for (int j=1; j<actionsLeft.length; j++) {
+					cdf+=actionsLeft[j];
+					if(coin<cdf) {
+						schedule[i]=motorlist.get(j);
+						actionsLeft[0]=actionsLeft[0]+1;//undo the default case
+						actionsLeft[j]=actionsLeft[j]-1;
+						break;
+					}
+				}
+			}
+			
+
+//    	write schedule in private method, and test it just with simple objects 
+//		execute step by step
 //    	TODO "undo" the startSynchronization commmands
+//		empty list of dispatched actions (it should be empty, check)
+//		for each writer, check that state is 0 (if not, it's inconsistent, so reset the buffer or something) 
 //    	run listeners
-		// execute this.listenersToPing = PING_NO_LISTENER; for all motors
+			// execute this.listenersToPing = PING_NO_LISTENER; for all motors
+		}
 	}
 
 	/**
@@ -579,7 +629,25 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		private final File path;
 
 		// queue to store list of actions dispatched during a synchronisation
-		private ArrayList<String[]> dispatchedActions;
+		private class Action {
+			private DataChannelRewriter writer;
+			private String arg;
+
+			public Action(DataChannelRewriter writer, String arg) {
+				this.writer = writer;
+				this.arg = arg;
+			}
+
+			public DataChannelRewriter getWriter() {
+				return this.writer;
+			}
+
+			public String getArg() {
+				return this.arg;
+			}
+		}
+
+		private Deque<Action> dispatchedActions;
 
 		private BaseRegulatedMotor owner;
 
@@ -600,32 +668,65 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 			dutyCycleReader = new DataChannelRereader(path + "/" + DUTY_CYCLE);
 
 			this.owner = owner;
+			this.dispatchedActions = new ArrayDeque<Action>();
 		}
 
-		// TODO actually dispatch the action in the queue
+		public int getNumOfDispatchedAtomicActions() {
+			int count = 0;
+			for (Action a : this.dispatchedActions)
+				count += a.getWriter().getNumOfStates();
+			return count;
+		}
+
+//		executes next dispatched action (only if in synch)
+//		returns whether or not the queue is empty
+		public boolean executeNext() {
+			if (this.owner.isInSynch()) {
+				// get first action in queue (don't remove it unless it's finished)
+				Action a = this.dispatchedActions.getFirst();
+				// if it returns false, action a has finished executing
+				while (!a.getWriter().executeNext(a.getArg())) {
+					// removes the action
+					this.dispatchedActions.poll();
+					a = this.dispatchedActions.getFirst();
+				}
+			}
+			return this.dispatchedActions.isEmpty();
+		}
+
 		public void writeSpeed(int speed) {
 			if (!this.owner.isInSynch())
 				speedWriter.writeInt(speed);
+			else
+				this.dispatchedActions.add(new Action(speedWriter, speed + ""));
 		}
 
 		public void writeDutyCycle(int dutyCycle) {
 			if (!this.owner.isInSynch())
 				dutyCycleWriter.writeInt(dutyCycle);
+			else
+				this.dispatchedActions.add(new Action(dutyCycleWriter, dutyCycle + ""));
 		}
 
 		public void writeCommand(String command) {
 			if (!this.owner.isInSynch())
 				commandWriter.writeString(command);
+			else
+				this.dispatchedActions.add(new Action(commandWriter, command));
 		}
 
 		public void writeStopCommand(String stopCommand) {
 			if (!this.owner.isInSynch())
 				stopCommandWriter.writeString(stopCommand);
+			else
+				this.dispatchedActions.add(new Action(stopCommandWriter, stopCommand));
 		}
 
 		public void writePositionSP(int posSP) {
 			if (!this.owner.isInSynch())
 				positionSPWriter.writeInt(posSP);
+			else
+				this.dispatchedActions.add(new Action(positionSPWriter, posSP + ""));
 		}
 
 		public String readState() {
