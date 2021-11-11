@@ -5,8 +5,10 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -518,6 +520,12 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		// this is the motor responsible
 		this.setSynchResponsible(this);
 		this.setInSynch(true);
+		
+		// remove duplicated motors from synched list
+		// use a set for this purpose
+		Set<BaseRegulatedMotor> synched = new HashSet<BaseRegulatedMotor>();
+		Collections.addAll(synched,this.motorsSynchedWith);
+		this.motorsSynchedWith = (BaseRegulatedMotor[]) synched.toArray();
 
 		for (BaseRegulatedMotor otherMotor : this.motorsSynchedWith) {
 			otherMotor.setSynchResponsible(this);
@@ -644,6 +652,10 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 
 			public String getArg() {
 				return this.arg;
+			}
+			
+			public String toString() {
+				return "WRITE "+this.arg+" into "+this.writer.getPath().getFileName();
 			}
 		}
 
