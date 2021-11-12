@@ -490,6 +490,16 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		}
 	}
 
+	private void updateListenersAfterSynch() {
+		if (this.listenersToPing == PING_START_LISTENERS)
+			updateListenersAfterStart();
+		else if (this.listenersToPing == PING_STOP_LISTENERS)
+			updateListenersAfterStop();
+
+		this.listenersToPing = PING_NO_LISTENER;
+
+	}
+
 	@Override
 	/**
 	 * sets the acceleration rate of this motor in degrees/sec/sec <br>
@@ -515,16 +525,55 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		}
 	}
 
+	private BaseRegulatedMotor[] allocateSchedule() {
+		// begin scheduling
+		List<BaseRegulatedMotor> motorlist = new ArrayList<BaseRegulatedMotor>();
+		motorlist.add(this);
+		Collections.addAll(motorlist, this.motorsSynchedWith);
+		// this arrays keeps the number of actions left to schedule for each
+		// synchedwithmotor+this one
+		// init array
+		int[] actionsLeft = new int[motorlist.size()];
+		int totalActions = 0;
+		for (int i = 0; i < motorlist.size(); i++) {
+			BaseRegulatedMotor m = motorlist.get(i);
+			int numActions = m.channelContainer.getNumOfDispatchedAtomicActions();
+			actionsLeft[i] = numActions;
+			totalActions += numActions;
+		}
+
+		// array to store the scheduling
+		BaseRegulatedMotor[] schedule = new BaseRegulatedMotor[totalActions];
+		for (int i = 0; i < schedule.length; i++) {
+			// for efficiency, schedule by default the first motor
+			schedule[i] = motorlist.get(0);
+			actionsLeft[0] = actionsLeft[0] - 1;
+			double coin = Math.random() * (totalActions - i);
+			double cdf = 0;
+			// don't need to check the first -- it's the default case
+			for (int j = 1; j < actionsLeft.length; j++) {
+				cdf += actionsLeft[j];
+				if (coin < cdf) {
+					schedule[i] = motorlist.get(j);
+					actionsLeft[0] = actionsLeft[0] + 1;// undo the default case
+					actionsLeft[j] = actionsLeft[j] - 1;
+					break;
+				}
+			}
+		}
+		return schedule;
+	}
+
 	@Override
 	public void startSynchronization() {
 		// this is the motor responsible
 		this.setSynchResponsible(this);
 		this.setInSynch(true);
-		
+
 		// remove duplicated motors from synched list
 		// use a set for this purpose
 		Set<BaseRegulatedMotor> synched = new HashSet<BaseRegulatedMotor>();
-		Collections.addAll(synched,this.motorsSynchedWith);
+		Collections.addAll(synched, this.motorsSynchedWith);
 		this.motorsSynchedWith = (BaseRegulatedMotor[]) synched.toArray();
 
 		for (BaseRegulatedMotor otherMotor : this.motorsSynchedWith) {
@@ -542,49 +591,25 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 			log.warn("ignoring endSynchronization: startSynchronisation not found");
 
 		else {
-			// begin scheduling
-			List<BaseRegulatedMotor> motorlist = new ArrayList<BaseRegulatedMotor>();
-			motorlist.add(this);
-	        Collections.addAll(motorlist, this.motorsSynchedWith);
-			// this arrays keeps the number of actions left to schedule for each synchedwithmotor+this one
-			// init array
-			int[] actionsLeft = new int[motorlist.size()];
-			int totalActions = 0;
-			for(int i =0; i< motorlist.size(); i++) {
-				BaseRegulatedMotor m = motorlist.get(i);
-				int numActions = m.channelContainer.getNumOfDispatchedAtomicActions();
-				actionsLeft[i]=numActions;
-				totalActions+=numActions;
+			BaseRegulatedMotor[] schedule = this.allocateSchedule();
+			// execute step by step
+			for (int i = 0; i < schedule.length; i++) {
+				schedule[i].channelContainer.executeNext();
 			}
 
-			// array to store the scheduling
-			BaseRegulatedMotor[] schedule = new BaseRegulatedMotor[totalActions];
-			for (int i =0; i< schedule.length; i++) {
-				// for efficiency, schedule by default the first motor 
-				schedule[i]=motorlist.get(0);
-				actionsLeft[0]=actionsLeft[0]-1;
-				double coin = Math.random()*(totalActions-i);
-				double cdf = 0;
-				// don't need to check the first
-				for (int j=1; j<actionsLeft.length; j++) {
-					cdf+=actionsLeft[j];
-					if(coin<cdf) {
-						schedule[i]=motorlist.get(j);
-						actionsLeft[0]=actionsLeft[0]+1;//undo the default case
-						actionsLeft[j]=actionsLeft[j]-1;
-						break;
-					}
-				}
+			// remove synch flags
+			for (BaseRegulatedMotor otherMotor : this.motorsSynchedWith) {
+				otherMotor.setSynchResponsible(null);
+				otherMotor.setInSynch(false);
+				otherMotor.channelContainer.resetActionQueue();
+				// run listeners
+				otherMotor.updateListenersAfterSynch();
 			}
-			
+			this.setSynchResponsible(null);
+			this.setInSynch(false);
+			this.channelContainer.resetActionQueue();
+			this.updateListenersAfterSynch();
 
-//    	write schedule in private method, and test it just with simple objects 
-//		execute step by step
-//    	TODO "undo" the startSynchronization commmands
-//		empty list of dispatched actions (it should be empty, check)
-//		for each writer, check that state is 0 (if not, it's inconsistent, so reset the buffer or something) 
-//    	run listeners
-			// execute this.listenersToPing = PING_NO_LISTENER; for all motors
 		}
 	}
 
@@ -653,9 +678,9 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 			public String getArg() {
 				return this.arg;
 			}
-			
+
 			public String toString() {
-				return "WRITE "+this.arg+" into "+this.writer.getPath().getFileName();
+				return "WRITE " + this.arg + " into " + this.writer.getPath().getFileName();
 			}
 		}
 
@@ -690,6 +715,21 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 			return count;
 		}
 
+		public void resetActionQueue() {
+			if (!this.dispatchedActions.isEmpty()) {
+				log.warn("resetting non-empty action queue");
+			}
+			this.dispatchedActions = new ArrayDeque<Action>();
+//			reset writers (it should not be necessary, 
+//			but it prints a warning if they were left in an inconsistent state
+			boolean warn = true;
+			speedWriter.resetState(warn);
+			commandWriter.resetState(warn);
+			stopCommandWriter.resetState(warn);
+			dutyCycleWriter.resetState(warn);
+			positionSPWriter.resetState(warn);
+		}
+
 //		executes next dispatched action (only if in synch)
 //		returns whether or not the queue is empty
 		public boolean executeNext() {
@@ -700,7 +740,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 				while (!a.getWriter().executeNext(a.getArg()) && !this.dispatchedActions.isEmpty()) {
 					// removes the action and updates next
 					this.dispatchedActions.poll();
-					if(!this.dispatchedActions.isEmpty())
+					if (!this.dispatchedActions.isEmpty())
 						a = this.dispatchedActions.getFirst();
 				}
 			}

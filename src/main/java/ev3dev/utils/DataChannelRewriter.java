@@ -23,7 +23,8 @@ public class DataChannelRewriter implements Closeable {
 
 	// variables for step-by-step execution
 	private int state;
-	private final int NUM_OF_STATES=7;
+
+	private final int NUM_OF_STATES = 7;
 
 	/**
 	 * Create a DataChannelRewriter for path with a bufferLength byte buffer
@@ -42,6 +43,16 @@ public class DataChannelRewriter implements Closeable {
 		this.state = 0;
 	}
 
+	public int getState() {
+		return state;
+	}
+
+	public void resetState(boolean warn) {
+		if (warn && this.state != 0)
+			System.out.println("Resetting non-initial state of writer" + this.path.getFileName());
+		this.state = 0;
+	}
+
 	/**
 	 * Create a DataChannelRewriter for pathString with the default 32-byte buffer.
 	 *
@@ -50,18 +61,17 @@ public class DataChannelRewriter implements Closeable {
 	public DataChannelRewriter(String pathString) {
 		this(Paths.get(pathString), 32);
 	}
-	
-	//	returns false if all steps are executed
-	//	TODO method comments
+
+	// returns false if all steps are executed
+	// TODO method comments
 	public boolean executeNext(String string) {
-		if(this.state<0 || this.state>6) {
+		if (this.state < 0 || this.state > 6) {
 			return false;
-		}
-		else {
+		} else {
 			this.steppedWrite(string);
 			return true;
 		}
-			
+
 	}
 
 	private synchronized void steppedWrite(String string) {
