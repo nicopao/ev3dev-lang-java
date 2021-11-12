@@ -66,6 +66,8 @@ public class DataChannelRewriter implements Closeable {
 	// TODO method comments
 	public boolean executeNext(String string) {
 		if (this.state < 0 || this.state > 6) {
+			// reset state
+			this.state = 0;
 			return false;
 		} else {
 			this.steppedWrite(string);
@@ -79,22 +81,30 @@ public class DataChannelRewriter implements Closeable {
 			switch (this.state) {
 			case 0:
 				byteBuffer.clear();
+				break;
 			case 1:
 				byteBuffer.put(string.getBytes(StandardCharsets.UTF_8));
+				break;
 			case 2:
 				byteBuffer.put(((byte) '\n'));
+				break;
 			case 3:
 				byteBuffer.flip();
+				break;
 			case 4:
 				channel.truncate(0);
+				break;
 			case 5:
 				channel.write(byteBuffer, 0);
+				break;
 			case 6:
 				channel.force(false);
+				break;
 			default:
-				this.state = -1;// it will become 0 after return
+				this.state = -1;// it will become 0 on return
 			}
-			this.state++;
+			this.state = this.state + 1;
+			System.err.println(state);
 		} catch (IOException e) {
 			throw new RuntimeException("Problem writing path: " + path, e);
 		}

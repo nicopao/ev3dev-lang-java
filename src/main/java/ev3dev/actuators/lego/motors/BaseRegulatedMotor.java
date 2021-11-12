@@ -77,6 +77,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	private final int PING_STOP_LISTENERS = 0;
 	private final int PING_NO_LISTENER = 0;
 	private int listenersToPing;
+	
+	private Port motorPort;
 
 	/**
 	 * Constructor
@@ -130,6 +132,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 			log.debug("Motor ready to use on Port: {}", motorPort.getName());
 		}
 
+		this.motorPort = motorPort;
 		this.setInSynch(false);
 		this.listenersToPing = PING_NO_LISTENER;
 
@@ -154,7 +157,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	 */
 	public int getTachoCount() {
 		if (this.isInSynch()) {
-			log.warn("getTachoCount() cannot be executed within synch block. Returning the pre-synchronization value.");
+			log.warn("Motor on port "+this.motorPort.getName()+": getTachoCount() cannot be executed within synch block. Returning the pre-synchronization value.");
 		}
 		return channelContainer.readTacho();
 		// return getIntegerAttribute(POSITION);
@@ -284,7 +287,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	@Override
 	public boolean isMoving() {
 		if (this.isInSynch()) {
-			log.warn("isMoving() cannot be executed within synch block. Returning the pre-synchronization value.");
+			log.warn("Motor on port "+this.motorPort.getName()+": isMoving() cannot be executed within synch block. Returning the pre-synchronization value.");
 		}
 		return (this.channelContainer.readState().contains(STATE_RUNNING));
 		// return (this.getStringAttribute(STATE).contains(STATE_RUNNING));
@@ -394,7 +397,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	 */
 	public int getSpeed() {
 		if (this.isInSynch()) {
-			log.warn("getSpeed() cannot be executed within synch block. Returning the pre-synchronization value.");
+			log.warn("Motor on port "+this.motorPort.getName()+": getSpeed() cannot be executed within synch block. Returning the pre-synchronization value.");
 		}
 
 		if (!this.regulationFlag) {
@@ -414,7 +417,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	 */
 	public boolean isStalled() {
 		if (this.isInSynch()) {
-			log.warn("isStalled() cannot be executed within synch block. Returning the pre-synchronization value.");
+			log.warn("Motor on port "+this.motorPort.getName()+":isStalled() cannot be executed within synch block. Returning the pre-synchronization value.");
 		}
 		return (this.channelContainer.readState().contains(STATE_STALLED));
 		// return (this.getStringAttribute(STATE).contains(STATE_STALLED));
@@ -511,7 +514,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	public void setAcceleration(int acceleration) {
 		this.acceleration = Math.abs(acceleration);
 
-		log.warn("Not executed internally the method: setAcceleration");
+		log.warn("Motor on port "+this.motorPort.getName()+": not executed internally the method: setAcceleration");
 		// reg.adjustAcceleration(this.acceleration);
 	}
 
@@ -519,7 +522,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	public void synchronizeWith(RegulatedMotor[] regulatedMotors) {
 		// we need the BaseRegulatedMotor type to access the full range of synch methods
 		if (this.isInSynch()) {
-			log.warn("Can't change synchronised-with motors while in a synchronisation block");
+			log.warn("Motor on port "+this.motorPort.getName()+":Can't change synchronised-with motors while in a synchronisation block");
 		} else {
 			this.motorsSynchedWith = (BaseRegulatedMotor[]) regulatedMotors;
 		}
@@ -574,7 +577,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		// use a set for this purpose
 		Set<BaseRegulatedMotor> synched = new HashSet<BaseRegulatedMotor>();
 		Collections.addAll(synched, this.motorsSynchedWith);
-		this.motorsSynchedWith = (BaseRegulatedMotor[]) synched.toArray();
+		this.motorsSynchedWith = synched.toArray(new BaseRegulatedMotor[synched.size()]);
 
 		for (BaseRegulatedMotor otherMotor : this.motorsSynchedWith) {
 			otherMotor.setSynchResponsible(this);
@@ -586,9 +589,9 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	public void endSynchronization() {
 
 		if (this.getSynchResponsible() != this)
-			log.warn("ignoring endSynchronization: it was invoked on wrong object");
+			log.warn("Motor on port "+this.motorPort.getName()+": ignoring endSynchronization: it was invoked on wrong object");
 		else if (!this.isInSynch())
-			log.warn("ignoring endSynchronization: startSynchronisation not found");
+			log.warn("Motor on port "+this.motorPort.getName()+": ignoring endSynchronization: no startSynchronisation was executed");
 
 		else {
 			BaseRegulatedMotor[] schedule = this.allocateSchedule();
@@ -716,9 +719,9 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		}
 
 		public void resetActionQueue() {
-			if (!this.dispatchedActions.isEmpty()) {
-				log.warn("resetting non-empty action queue");
-			}
+//			if (!this.dispatchedActions.isEmpty()) {
+//				log.warn("Motor on port "+this.owner.motorPort.getName()+": resetting non-empty action queue");
+//			}
 			this.dispatchedActions = new ArrayDeque<Action>();
 //			reset writers (it should not be necessary, 
 //			but it prints a warning if they were left in an inconsistent state
@@ -730,18 +733,21 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 			positionSPWriter.resetState(warn);
 		}
 
+	
 //		executes next dispatched action (only if in synch)
 //		returns whether or not the queue is empty
 		public boolean executeNext() {
 			if (this.owner.isInSynch()) {
 				// get first action in queue (don't remove it unless it's finished)
 				Action a = this.dispatchedActions.getFirst();
+//				log.warn("Motor on port "+this.owner.motorPort.getName()+": executing action "+a+"; state "+a.getWriter().getState());
 				// if it returns false, action a has finished executing
 				while (!a.getWriter().executeNext(a.getArg()) && !this.dispatchedActions.isEmpty()) {
 					// removes the action and updates next
 					this.dispatchedActions.poll();
 					if (!this.dispatchedActions.isEmpty())
 						a = this.dispatchedActions.getFirst();
+//					log.warn("Motor on port "+this.owner.motorPort.getName()+": executing action "+a+"; state "+a.getWriter().getState());
 				}
 			}
 			return this.dispatchedActions.isEmpty();
