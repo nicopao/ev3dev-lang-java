@@ -49,7 +49,7 @@ public class DataChannelRewriter implements Closeable {
 
 	public void resetState(boolean warn) {
 		if (warn && this.state != 0)
-			System.out.println("Resetting non-initial state of writer" + this.path.getFileName());
+			System.err.println("Resetting non-initial state of writer" + this.path.getFileName());
 		this.state = 0;
 	}
 
@@ -104,7 +104,6 @@ public class DataChannelRewriter implements Closeable {
 				this.state = -1;// it will become 0 on return
 			}
 			this.state = this.state + 1;
-			System.err.println(state);
 		} catch (IOException e) {
 			throw new RuntimeException("Problem writing path: " + path, e);
 		}
