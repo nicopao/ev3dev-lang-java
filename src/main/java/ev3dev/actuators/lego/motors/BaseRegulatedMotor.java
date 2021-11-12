@@ -75,6 +75,9 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	private final int NO_SYNCH = 0;
 	private final int SYNCH_BLOCK = 1;
 	private final int SYNCH_EXEC = 2;
+
+	private long currentSynchThreadId;
+
 	private BaseRegulatedMotor synch_responsible;
 	private final int PING_START_LISTENERS = 1;
 	private final int PING_STOP_LISTENERS = 0;
@@ -138,7 +141,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		this.motorPort = motorPort;
 		this.synchState = NO_SYNCH;
 		this.listenersToPing = PING_NO_LISTENER;
-
+		this.resetSynchThreadId();
 	}
 
 	/**
@@ -523,11 +526,11 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		log.warn("Motor on port " + this.motorPort.getName() + ": not executed internally the method: setAcceleration");
 		// reg.adjustAcceleration(this.acceleration);
 	}
-	
+
 	private void readInSynchWarning(String commandName) {
 		if (this.isInSynchBlock()) {
-			log.warn("Motor on port " + this.motorPort.getName()
-					+ ": "+commandName+" cannot be executed within synch block. Returning the pre-synchronization value.");
+			log.warn("Motor on port " + this.motorPort.getName() + ": " + commandName
+					+ " cannot be executed within synch block. Returning the pre-synchronization value.");
 		}
 	}
 
@@ -582,20 +585,31 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	}
 
 	private void waitForSynchEnd() {
-		while(this.synchState!=NO_SYNCH) {}
+		while (this.synchState != NO_SYNCH) {
+		}
 	}
-	
+
 	private void waitForSynchExec() {
-		while(this.synchState==SYNCH_EXEC) {}
+		while (this.synchState == SYNCH_EXEC) {
+		}
 	}
-	
+
+	private void resetSynchThreadId() {
+		this.currentSynchThreadId = -1;
+	}
+
+	private void setSynchThreadId() {
+		this.currentSynchThreadId = Thread.currentThread().getId();
+	}
+
 	@Override
 	public void startSynchronization() {
 		// wait for any existing synchronisation (e.g., from other threads) to end
 		this.waitForSynchEnd();
 		// this is the motor responsible
 		this.setSynchResponsible(this);
-		this.synchState=SYNCH_BLOCK;
+		this.synchState = SYNCH_BLOCK;
+		this.setSynchThreadId();
 
 		// remove duplicated motors from synched list
 		// use a set for this purpose
@@ -607,7 +621,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 			// wait for any existing synchronisation (e.g., from other threads) to end
 			otherMotor.waitForSynchEnd();
 			otherMotor.setSynchResponsible(this);
-			otherMotor.synchState=SYNCH_BLOCK;
+			otherMotor.synchState = SYNCH_BLOCK;
+			otherMotor.setSynchThreadId();
 		}
 	}
 
@@ -622,9 +637,9 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 					+ ": ignoring endSynchronization: no startSynchronisation was executed");
 
 		else {
-			for (BaseRegulatedMotor otherMotor : this.motorsSynchedWith) 
-				otherMotor.synchState=SYNCH_EXEC;
-			this.synchState=SYNCH_EXEC;
+			for (BaseRegulatedMotor otherMotor : this.motorsSynchedWith)
+				otherMotor.synchState = SYNCH_EXEC;
+			this.synchState = SYNCH_EXEC;
 			BaseRegulatedMotor[] schedule = this.allocateSchedule();
 			// execute step by step
 			for (int i = 0; i < schedule.length; i++) {
@@ -635,12 +650,14 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 			for (BaseRegulatedMotor otherMotor : this.motorsSynchedWith) {
 				otherMotor.setSynchResponsible(null);
 				otherMotor.synchState = NO_SYNCH;
+				otherMotor.resetSynchThreadId();
 				otherMotor.channelContainer.resetActionQueue();
 				// run listeners
 				otherMotor.updateListenersAfterSynch();
 			}
 			this.setSynchResponsible(null);
 			this.synchState = NO_SYNCH;
+			this.resetSynchThreadId();
 			this.channelContainer.resetActionQueue();
 			this.updateListenersAfterSynch();
 
@@ -652,7 +669,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	 *         otherwise
 	 */
 	private boolean isInSynchBlock() {
-		return this.synchState==SYNCH_BLOCK;
+		// the state might be synched in one thread but not synched on another thread
+		return (this.synchState == SYNCH_BLOCK && this.currentSynchThreadId == Thread.currentThread().getId());
 	}
 
 	/**
