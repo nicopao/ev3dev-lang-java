@@ -272,7 +272,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		this.channelContainer.writeCommand(STOP);
 
 		// ignore immediateReturn=false if in synch
-		if (!(immediateReturn || this.isInSynchBlock())) {
+		if (!(immediateReturn || this.isInSynchBlock(true))) {
 			waitComplete();
 		}
 
@@ -347,7 +347,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		this.channelContainer.writeCommand(RUN_TO_REL_POS);
 
 		// don't block if in synch
-		if (!(immediateReturn || this.isInSynchBlock())) {
+		if (!(immediateReturn || this.isInSynchBlock(true))) {
 			while (this.isMoving()) {
 				// do stuff or do nothing
 				// possibly sleep for some short interval to not block
@@ -381,7 +381,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		this.channelContainer.writeCommand(RUN_TO_ABS_POS);
 
 		// don't block if in synch
-		if (!(immediateReturn || this.isInSynchBlock())) {
+		if (!(immediateReturn || this.isInSynchBlock(true))) {
 			while (this.isMoving()) {
 				// do stuff or do nothing
 				// possibly sleep for some short interval to not block
@@ -483,7 +483,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	// actions happen
 	// so it will notify only about the last one
 	private void updateListenersAfterStop() {
-		if (this.isInSynchBlock()) {
+		if (this.isInSynchBlock(true)) {
 			this.listenersToPing = PING_STOP_LISTENERS;
 		} else {
 			for (RegulatedMotorListener listener : listenerList) {
@@ -493,7 +493,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	}
 
 	private void updateListenersAfterStart() {
-		if (this.isInSynchBlock()) {
+		if (this.isInSynchBlock(true)) {
 			this.listenersToPing = PING_START_LISTENERS;
 		} else {
 			for (RegulatedMotorListener listener : listenerList) {
@@ -528,7 +528,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	}
 
 	private void readInSynchWarning(String commandName) {
-		if (this.isInSynchBlock()) {
+		if (this.isInSynchBlock(true)) {
 			log.warn("Motor on port " + this.motorPort.getName() + ": " + commandName
 					+ " cannot be executed within synch block. Returning the pre-synchronization value.");
 		}
@@ -537,7 +537,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	@Override
 	public void synchronizeWith(RegulatedMotor[] regulatedMotors) {
 		// we need the BaseRegulatedMotor type to access the full range of synch methods
-		if (this.isInSynchBlock()) {
+		if (this.isInSynchBlock(true)) {
 			log.warn("Motor on port " + this.motorPort.getName()
 					+ ":Can't change synchronised-with motors while in a synchronisation block");
 		} else {
@@ -603,13 +603,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	}
 
 	@Override
-	public void startSynchronization() {
-		// wait for any existing synchronisation (e.g., from other threads) to end
-		this.waitForSynchEnd();
-		// this is the motor responsible
-		this.setSynchResponsible(this);
-		this.synchState = SYNCH_BLOCK;
-		this.setSynchThreadId();
+	public synchronized void startSynchronization() {
+//		log.info("synch started");
 
 		// remove duplicated motors from synched list
 		// use a set for this purpose
@@ -617,8 +612,25 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		Collections.addAll(synched, this.motorsSynchedWith);
 		this.motorsSynchedWith = synched.toArray(new BaseRegulatedMotor[synched.size()]);
 
+		// wait for any existing synchronisation (e.g., from other threads) to end
+		// this is more restrictive than synchronized keyword as it
+		// doesn't allow synch to start in between start and end
+		// synch keyword is still useful to avoid two "startSynchronization" to run at
+		// the "same" time
+		this.waitForSynchEnd();
+		// this is the motor responsible
+		this.setSynchResponsible(this);
+		this.synchState = SYNCH_BLOCK;
+		this.setSynchThreadId();
+
 		for (BaseRegulatedMotor otherMotor : this.motorsSynchedWith) {
 			// wait for any existing synchronisation (e.g., from other threads) to end
+			// TODO there is a potential deadlock. Double check. E.g., while waiting for
+			// motor[i] to finish synch on thread J,
+			// motor[i+1] enters another synch block on thread J+1; worse, thread J+1 might
+			// request motor[i], which is now blocked
+			// by thread J.
+
 			otherMotor.waitForSynchEnd();
 			otherMotor.setSynchResponsible(this);
 			otherMotor.synchState = SYNCH_BLOCK;
@@ -626,13 +638,24 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		}
 	}
 
+	private void postSynchActions() {
+		this.setSynchResponsible(null);
+		this.synchState = NO_SYNCH;
+		this.resetSynchThreadId();
+		this.channelContainer.resetActionQueue();
+		this.updateListenersAfterSynch();
+	}
+
 	@Override
+	// here, I don't think we need synchronized keyword. the above "waitForSynchEnd"
+	// already ensures that
+	// no startsynch can start before the current synch ends.
 	public void endSynchronization() {
 
 		if (this.getSynchResponsible() != this)
 			log.warn("Motor on port " + this.motorPort.getName()
 					+ ": ignoring endSynchronization: it was invoked on wrong object");
-		else if (!this.isInSynchBlock())
+		else if (!this.isInSynchBlock(true))
 			log.warn("Motor on port " + this.motorPort.getName()
 					+ ": ignoring endSynchronization: no startSynchronisation was executed");
 
@@ -641,38 +664,42 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 				otherMotor.synchState = SYNCH_EXEC;
 			this.synchState = SYNCH_EXEC;
 			BaseRegulatedMotor[] schedule = this.allocateSchedule();
+//			log.info("Scheduled " + schedule.length + " actions");
 			// execute step by step
 			for (int i = 0; i < schedule.length; i++) {
 				schedule[i].channelContainer.executeNext();
 			}
 
 			// remove synch flags
-			for (BaseRegulatedMotor otherMotor : this.motorsSynchedWith) {
-				otherMotor.setSynchResponsible(null);
-				otherMotor.synchState = NO_SYNCH;
-				otherMotor.resetSynchThreadId();
-				otherMotor.channelContainer.resetActionQueue();
-				// run listeners
-				otherMotor.updateListenersAfterSynch();
-			}
-			this.setSynchResponsible(null);
-			this.synchState = NO_SYNCH;
-			this.resetSynchThreadId();
-			this.channelContainer.resetActionQueue();
-			this.updateListenersAfterSynch();
+			for (BaseRegulatedMotor otherMotor : this.motorsSynchedWith)
+				otherMotor.postSynchActions();
 
+			this.postSynchActions();
+//			log.info("synch ended");
 		}
 	}
 
 	/**
+	 * @param anyThread, checks if it's in synch block in the current thread (true) or any thread (false)
 	 * @return true if the motor is involved in a synchronisation block, false
 	 *         otherwise
 	 */
-	private boolean isInSynchBlock() {
+	private boolean isInSynchBlock(boolean inThread) {
 		// the state might be synched in one thread but not synched on another thread
-		return (this.synchState == SYNCH_BLOCK && this.currentSynchThreadId == Thread.currentThread().getId());
+		boolean threadCheck = !inThread || this.currentSynchThreadId == Thread.currentThread().getId();
+		return (this.synchState == SYNCH_BLOCK && threadCheck);
 	}
 
+	/**
+	 * @param anyThread, checks if it's in synch block in the current thread (true) or any thread (false)
+	 * @return true if the motor is executing the synch block (i.e., end-synch)
+	 */
+	private boolean isExecutingSynch(boolean inThread) {
+		// the state might be synched in one thread but not synched on another thread
+		boolean threadCheck = !inThread || this.currentSynchThreadId == Thread.currentThread().getId();
+		return (this.synchState == SYNCH_EXEC && threadCheck);
+	}
+	
 	/**
 	 * @return the motor responsible to handle synchronisation
 	 */
@@ -773,55 +800,61 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 			positionSPWriter.resetState(warn);
 		}
 
-//		executes next dispatched action (only if in synch)
+//		executes next dispatched action (only if synch is currently executing)
 //		returns whether or not the queue is empty
 		public boolean executeNext() {
-			if (this.owner.isInSynchBlock()) {
+			log.info("Motor on port " + this.owner.motorPort.getName() + ": " + "state: " + this.owner.synchState
+					+ "; synch thread: " + this.owner.currentSynchThreadId + "; current thread: "
+					+ Thread.currentThread().getId());
+
+			if (this.owner.isExecutingSynch(true)) {
 				// get first action in queue (don't remove it unless it's finished)
 				Action a = this.dispatchedActions.getFirst();
-//				log.warn("Motor on port "+this.owner.motorPort.getName()+": executing action "+a+"; state "+a.getWriter().getState());
+//				log.warn("Motor on port " + this.owner.motorPort.getName() + ": executing action " + a + "; state "
+//						+ a.getWriter().getState());
 				// if it returns false, action a has finished executing
 				while (!a.getWriter().executeNext(a.getArg()) && !this.dispatchedActions.isEmpty()) {
 					// removes the action and updates next
 					this.dispatchedActions.poll();
 					if (!this.dispatchedActions.isEmpty())
 						a = this.dispatchedActions.getFirst();
-//					log.warn("Motor on port "+this.owner.motorPort.getName()+": executing action "+a+"; state "+a.getWriter().getState());
+//					log.warn("Motor on port " + this.owner.motorPort.getName() + ": executing action " + a + "; state "
+//							+ a.getWriter().getState());
 				}
 			}
 			return this.dispatchedActions.isEmpty();
 		}
 
 		public void writeSpeed(int speed) {
-			if (!this.owner.isInSynchBlock())
+			if (!this.owner.isInSynchBlock(true))
 				speedWriter.writeInt(speed);
 			else
 				this.dispatchedActions.add(new Action(speedWriter, speed + ""));
 		}
 
 		public void writeDutyCycle(int dutyCycle) {
-			if (!this.owner.isInSynchBlock())
+			if (!this.owner.isInSynchBlock(true))
 				dutyCycleWriter.writeInt(dutyCycle);
 			else
 				this.dispatchedActions.add(new Action(dutyCycleWriter, dutyCycle + ""));
 		}
 
 		public void writeCommand(String command) {
-			if (!this.owner.isInSynchBlock())
+			if (!this.owner.isInSynchBlock(true))
 				commandWriter.writeString(command);
 			else
 				this.dispatchedActions.add(new Action(commandWriter, command));
 		}
 
 		public void writeStopCommand(String stopCommand) {
-			if (!this.owner.isInSynchBlock())
+			if (!this.owner.isInSynchBlock(true))
 				stopCommandWriter.writeString(stopCommand);
 			else
 				this.dispatchedActions.add(new Action(stopCommandWriter, stopCommand));
 		}
 
 		public void writePositionSP(int posSP) {
-			if (!this.owner.isInSynchBlock())
+			if (!this.owner.isInSynchBlock(true))
 				positionSPWriter.writeInt(posSP);
 			else
 				this.dispatchedActions.add(new Action(positionSPWriter, posSP + ""));
