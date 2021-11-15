@@ -588,10 +588,11 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		if (this.synchState != NO_SYNCH) {
 			System.err.print("Motor on port " + this.motorPort.getName()
 					+ " is in another synchronization block. Waiting for that block to finish...");
+
+			while (this.synchState != NO_SYNCH) {
+			}
+			System.err.println("done");
 		}
-		while (this.synchState != NO_SYNCH) {
-		}
-		System.err.println("done");
 	}
 
 	private void waitForSynchExec() {
