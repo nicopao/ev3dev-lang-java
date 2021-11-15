@@ -585,8 +585,13 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	}
 
 	private void waitForSynchEnd() {
+		if (this.synchState != NO_SYNCH) {
+			System.err.print("Motor on port " + this.motorPort.getName()
+					+ " is in another synchronization block. Waiting for that block to finish...");
+		}
 		while (this.synchState != NO_SYNCH) {
 		}
+		System.err.println("done");
 	}
 
 	private void waitForSynchExec() {
@@ -807,9 +812,9 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 //		executes next dispatched action (only if synch is currently executing)
 //		returns whether or not the queue is empty
 		public boolean executeNext() {
-			log.info("Motor on port " + this.owner.motorPort.getName() + ": " + "state: " + this.owner.synchState
-					+ "; synch thread: " + this.owner.currentSynchThreadId + "; current thread: "
-					+ Thread.currentThread().getId());
+//			log.info("Motor on port " + this.owner.motorPort.getName() + ": " + "state: " + this.owner.synchState
+//					+ "; synch thread: " + this.owner.currentSynchThreadId + "; current thread: "
+//					+ Thread.currentThread().getId());
 
 			if (this.owner.isExecutingSynch(true)) {
 				// get first action in queue (don't remove it unless it's finished)
