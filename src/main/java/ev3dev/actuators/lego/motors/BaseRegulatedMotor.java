@@ -608,10 +608,12 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 
 		// remove duplicated motors from synched list
 		// use a set for this purpose
-		Set<BaseRegulatedMotor> synched = new HashSet<BaseRegulatedMotor>();
-		Collections.addAll(synched, this.motorsSynchedWith);
-		this.motorsSynchedWith = synched.toArray(new BaseRegulatedMotor[synched.size()]);
-
+		// check if motorsSynchedWith is non-empty to avoid exception in addAll
+		if (this.motorsSynchedWith.length > 0) {
+			Set<BaseRegulatedMotor> synched = new HashSet<BaseRegulatedMotor>();
+			Collections.addAll(synched, this.motorsSynchedWith);
+			this.motorsSynchedWith = synched.toArray(new BaseRegulatedMotor[synched.size()]);
+		}
 		// wait for any existing synchronisation (e.g., from other threads) to end
 		// this is more restrictive than synchronized keyword as it
 		// doesn't allow synch to start in between start and end
@@ -680,7 +682,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	}
 
 	/**
-	 * @param anyThread, checks if it's in synch block in the current thread (true) or any thread (false)
+	 * @param anyThread, checks if it's in synch block in the current thread (true)
+	 *                   or any thread (false)
 	 * @return true if the motor is involved in a synchronisation block, false
 	 *         otherwise
 	 */
@@ -691,7 +694,8 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	}
 
 	/**
-	 * @param anyThread, checks if it's in synch block in the current thread (true) or any thread (false)
+	 * @param anyThread, checks if it's in synch block in the current thread (true)
+	 *                   or any thread (false)
 	 * @return true if the motor is executing the synch block (i.e., end-synch)
 	 */
 	private boolean isExecutingSynch(boolean inThread) {
@@ -699,7 +703,7 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 		boolean threadCheck = !inThread || this.currentSynchThreadId == Thread.currentThread().getId();
 		return (this.synchState == SYNCH_EXEC && threadCheck);
 	}
-	
+
 	/**
 	 * @return the motor responsible to handle synchronisation
 	 */
