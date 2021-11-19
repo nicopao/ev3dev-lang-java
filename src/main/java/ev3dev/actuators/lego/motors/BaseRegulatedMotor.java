@@ -588,57 +588,57 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	// TODO: after figuring out issue with illegal monitor state,
 	//	 switch to the implementation below that uses wait/notify instead of busy waiting
 
-//	private void waitForSynchEnd() {
-//		if (this.synchState != NO_SYNCH) {
-//			log.warn("Motor on port " + this.motorPort.getName()
-//					+ " is in another synchronization block. Waiting for that block to finish...");
-//
-//			synchronized (this.synchState) {
-//				while (this.synchState != NO_SYNCH) {
-//					try {
-//						this.synchState.wait();
-//					} catch (InterruptedException e) {
-//						e.printStackTrace();
-//					}
-//				}
-//			}
-//			log.warn("done");
-//		}
-//	}
-
 	private void waitForSynchEnd() {
 		if (this.synchState != NO_SYNCH) {
-			System.err.print("Motor on port " + this.motorPort.getName()
+			log.warn("Motor on port " + this.motorPort.getName()
 					+ " is in another synchronization block. Waiting for that block to finish...");
 
-			while (this.synchState != NO_SYNCH) {
+			synchronized (this) {
+				while (this.synchState != NO_SYNCH) {
+					try {
+						this.wait();
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
 			}
-			System.err.println("done");
+			log.warn("done");
 		}
 	}
-	
-//	private void waitForSynchExec() {
-//		if (this.synchState == SYNCH_EXEC) {
-//			log.warn("Motor on port " + this.motorPort.getName()
-//					+ " is executing another synchronization block. Waiting for that block to finish...");
+
+//	private void waitForSynchEnd() {
+//		if (this.synchState != NO_SYNCH) {
+//			System.err.print("Motor on port " + this.motorPort.getName()
+//					+ " is in another synchronization block. Waiting for that block to finish...");
 //
-//			synchronized (this.synchState) {
-//				while (this.synchState == SYNCH_EXEC) {
-//					try {
-//						this.synchState.wait();
-//					} catch (InterruptedException e) {
-//						e.printStackTrace();
-//					}
-//				}
+//			while (this.synchState != NO_SYNCH) {
 //			}
-//			log.warn("done");
+//			System.err.println("done");
 //		}
 //	}
-
+	
 	private void waitForSynchExec() {
-		while (this.synchState == SYNCH_EXEC) {
+		if (this.synchState == SYNCH_EXEC) {
+			log.warn("Motor on port " + this.motorPort.getName()
+					+ " is executing another synchronization block. Waiting for that block to finish...");
+
+			synchronized (this) {
+				while (this.synchState == SYNCH_EXEC) {
+					try {
+						this.wait();
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+			}
+			log.warn("done");
 		}
 	}
+
+//	private void waitForSynchExec() {
+//		while (this.synchState == SYNCH_EXEC) {
+//		}
+//	}
 
 	private void resetSynchThreadId() {
 		this.currentSynchThreadId = -1;
@@ -689,24 +689,24 @@ public abstract class BaseRegulatedMotor extends EV3DevMotorDevice implements Re
 	}
 
 //	TODO: figure out problem with IllegalMonitorStateException and restore the notifyAll() version
-	private void postSynchActions() {
-		this.setSynchResponsible(null);
-		this.synchState = NO_SYNCH;
-		this.resetSynchThreadId();
-		this.channelContainer.resetActionQueue();
-		this.updateListenersAfterSynch();
-	}
-	
 //	private void postSynchActions() {
-//		synchronized (this.synchState) {
-//			this.setSynchResponsible(null);
-//			this.synchState = NO_SYNCH;
-//			this.resetSynchThreadId();
-//			this.channelContainer.resetActionQueue();
-//			this.updateListenersAfterSynch();
-//			this.synchState.notifyAll();
-//		}
+//		this.setSynchResponsible(null);
+//		this.synchState = NO_SYNCH;
+//		this.resetSynchThreadId();
+//		this.channelContainer.resetActionQueue();
+//		this.updateListenersAfterSynch();
 //	}
+	
+	private void postSynchActions() {
+		synchronized (this) {
+			this.setSynchResponsible(null);
+			this.synchState = NO_SYNCH;
+			this.resetSynchThreadId();
+			this.channelContainer.resetActionQueue();
+			this.updateListenersAfterSynch();
+			this.notifyAll();
+		}
+	}
 
 	@Override
 	// here, I don't think we need synchronized keyword. the above "waitForSynchEnd"
